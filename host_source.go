@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.ketch.com/lib/orlop/v2/log"
 	"net"
 	"strconv"
 	"strings"
@@ -651,6 +652,8 @@ func (r *ringDescriber) GetHosts() ([]*HostInfo, string, error) {
 		return r.prevHosts, r.prevPartitioner, err
 	}
 
+	log.WithField("struct", "ringDescriber").WithField("method", "GetHosts").WithField("peers", hosts).Debug("system.peers")
+
 	var partitioner string
 	if len(hosts) > 0 {
 		partitioner = hosts[0].Partitioner()
@@ -678,6 +681,8 @@ func (r *ringDescriber) getHostInfo(hostID UUID) (*HostInfo, error) {
 				return nil, err
 			}
 
+			log.WithField("struct", "ringDescriber").WithField("method", "getHostInfo").WithField("peers", rows).Debug(table)
+
 			for _, row := range rows {
 				h, err := r.session.hostInfoFromMap(row, &HostInfo{port: r.session.cfg.Port})
 				if err != nil {
@@ -702,6 +707,8 @@ func (r *ringDescriber) getHostInfo(hostID UUID) (*HostInfo, error) {
 }
 
 func (r *ringDescriber) refreshRing() error {
+	l := log.WithField("struct", "ringDescriber").WithField("method", "refreshRing")
+
 	// if we have 0 hosts this will return the previous list of hosts to
 	// attempt to reconnect to the cluster otherwise we would never find
 	// downed hosts again, could possibly have an optimisation to only
@@ -712,6 +719,8 @@ func (r *ringDescriber) refreshRing() error {
 	}
 
 	prevHosts := r.session.ring.currentHosts()
+
+	l.WithField("prevHosts", prevHosts).WithField("newHosts", hosts).Debug("refreshing ring")
 
 	// TODO: move this to session
 	for _, h := range hosts {

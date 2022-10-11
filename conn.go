@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"go.ketch.com/lib/orlop/v2/log"
 	"io"
 	"io/ioutil"
 	"net"
@@ -93,13 +94,13 @@ func (p PasswordAuthenticator) Success(data []byte) error {
 // to true if no Config is set. Most users should set SslOptions.Config to a *tls.Config.
 // SslOptions and Config.InsecureSkipVerify interact as follows:
 //
-//  Config.InsecureSkipVerify | EnableHostVerification | Result
-//  Config is nil             | false                  | do not verify host
-//  Config is nil             | true                   | verify host
-//  false                     | false                  | verify host
-//  true                      | false                  | do not verify host
-//  false                     | true                   | verify host
-//  true                      | true                   | verify host
+//	Config.InsecureSkipVerify | EnableHostVerification | Result
+//	Config is nil             | false                  | do not verify host
+//	Config is nil             | true                   | verify host
+//	false                     | false                  | verify host
+//	true                      | false                  | do not verify host
+//	false                     | true                   | verify host
+//	true                      | true                   | verify host
 type SslOptions struct {
 	*tls.Config
 
@@ -1466,6 +1467,8 @@ func (c *Conn) awaitSchemaAgreement(ctx context.Context) (err error) {
 		if err != nil {
 			goto cont
 		}
+
+		log.WithField("struct", "Conn").WithField("method", "awaitSchemaAgreement").WithField("peers", rows).Debug("system.peers")
 
 		for _, row := range rows {
 			host, err := c.session.hostInfoFromMap(row, &HostInfo{connectAddress: c.host.ConnectAddress(), port: c.session.cfg.Port})

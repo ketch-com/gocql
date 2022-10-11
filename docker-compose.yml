@@ -1,30 +1,57 @@
-version: "3.7"
+version: "3.9"
 
 services:
-  node_1:
-    image: ${SCYLLA_IMAGE}
-    privileged: true
-    command: --smp 2 --memory 512M --seeds 192.168.100.11 --overprovisioned 1
-    networks:
-      public:
-        ipv4_address: 192.168.100.11
-    volumes:
-    - type: bind
-      source: ./testdata/config/scylla.yaml
-      target: /etc/scylla/scylla.yaml
-    - type: bind
-      source: ./testdata/pki/ca.crt
-      target: /etc/scylla/ca.crt
-    - type: bind
-      source: ./testdata/pki/cassandra.crt
-      target: /etc/scylla/db.crt
-    - type: bind
-      source: ./testdata/pki/cassandra.key
-      target: /etc/scylla/db.key
+  smoketest:
+    build:
+      context: .
+      dockerfile: docker/smoketest/Dockerfile
+    profiles:
+      - smoketest
+    environment:
+      SMOKETEST_EVENTS_URL: nats://nats:4222
+      SMOKETEST_EVENTS_TLS_ENABLED: true
+      SMOKETEST_EVENTS_TLS_CERT_ID: keys/nats-tls
+      SMOKETEST_EVENTS_TLS_KEY_ID: keys/nats-tls
+      SMOKETEST_VAULT_ENABLED: true
+      SMOKETEST_VAULT_ADDRESS: http://vault:8200
+      SMOKETEST_VAULT_PREFIX: secret/gocql
+      SMOKETEST_VAULT_TLS_ENABLED: false
+      SMOKETEST_VAULT_TOKEN: ketch
+
+  nats:
+    image: ghcr.io/ketch-com/nats
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    depends_on:
+      vault-loader:
+        condition: service_completed_successfully
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ketch
+      VAULT_PREFIX: secret/gocql
+
+  vault:
+    image: ghcr.io/ketch-com/vault
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ketch
+
+  vault-loader:
+    image: ghcr.io/ketch-com/vault-loader
+    depends_on:
+      vault:
+        condition: service_started
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ketch
+      VAULT_PREFIX: secret/gocql
+      VAULT_PKI_SERVICES: gocql;nats
+
 networks:
-  public:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 192.168.100.0/24
+  default:
+    name: gocql_default

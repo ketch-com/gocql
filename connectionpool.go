@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"go.ketch.com/lib/orlop/v2/log"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -152,6 +153,8 @@ func newPolicyConnPool(session *Session) *policyConnPool {
 }
 
 func (p *policyConnPool) SetHosts(hosts []*HostInfo) {
+	l := log.WithField("struct", "policyConnPool").WithField("method", "SetHosts")
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -163,12 +166,16 @@ func (p *policyConnPool) SetHosts(hosts []*HostInfo) {
 	pools := make(chan *hostConnPool)
 	createCount := 0
 	for _, host := range hosts {
+		l2 := l.WithField("host", host.HostID())
+
 		if !host.IsUp() {
+			l2.Debug("not up")
 			// don't create a connection pool for a down host
 			continue
 		}
 		hostID := host.HostID()
 		if _, exists := p.hostConnPools[hostID]; exists {
+			l2.Debug("still have")
 			// still have this host, so don't remove it
 			delete(toRemove, hostID)
 			continue
@@ -198,6 +205,7 @@ func (p *policyConnPool) SetHosts(hosts []*HostInfo) {
 	}
 
 	for addr := range toRemove {
+		l.WithField("addr", addr).Debug("removing")
 		pool := p.hostConnPools[addr]
 		delete(p.hostConnPools, addr)
 		go pool.Close()
@@ -235,6 +243,8 @@ func (p *policyConnPool) Close() {
 }
 
 func (p *policyConnPool) addHost(host *HostInfo) {
+	log.WithField("struct", "policyConnPool").WithField("method", "addHost").WithField("host", host.HostID()).Debug("adding host")
+
 	hostID := host.HostID()
 	p.mu.Lock()
 	pool, ok := p.hostConnPools[hostID]
@@ -255,6 +265,8 @@ func (p *policyConnPool) addHost(host *HostInfo) {
 }
 
 func (p *policyConnPool) removeHost(hostID string) {
+	log.WithField("struct", "policyConnPool").WithField("method", "removeHost").WithField("host", hostID).Debug("removing host")
+
 	p.mu.Lock()
 	pool, ok := p.hostConnPools[hostID]
 	if !ok {
@@ -312,6 +324,8 @@ func newHostConnPool(session *Session, host *HostInfo, port, size int,
 
 // Pick a connection from this connection pool for the given query.
 func (pool *hostConnPool) Pick(token token) *Conn {
+	log.WithField("struct", "hostConnPool").WithField("method", "Pick").WithField("token", token.String()).Debug("picking connection")
+
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
 
@@ -332,7 +346,7 @@ func (pool *hostConnPool) Pick(token token) *Conn {
 	return pool.connPicker.Pick(token)
 }
 
-//Size returns the number of connections currently active in the pool
+// Size returns the number of connections currently active in the pool
 func (pool *hostConnPool) Size() int {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
@@ -341,7 +355,7 @@ func (pool *hostConnPool) Size() int {
 	return size
 }
 
-//Close the connection pool
+// Close the connection pool
 func (pool *hostConnPool) Close() {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
@@ -431,6 +445,8 @@ func (pool *hostConnPool) fill() {
 }
 
 func (pool *hostConnPool) logConnectErr(err error) {
+	log.WithField("struct", "hostConnPool").WithField("method", "logConnectErr").WithError(err).Error("host connection pool error")
+
 	if opErr, ok := err.(*net.OpError); ok && (opErr.Op == "dial" || opErr.Op == "read") {
 		// connection refused
 		// these are typical during a node outage so avoid log spam.
@@ -488,6 +504,8 @@ func (pool *hostConnPool) connectMany(count int) error {
 
 // create a new connection to the host and add it to the pool
 func (pool *hostConnPool) connect() (err error) {
+	l := log.WithField("struct", "hostConnPool").WithField("method", "connect")
+
 	pool.mu.Lock()
 	shardID, nrShards := pool.connPicker.NextShard()
 	pool.mu.Unlock()
@@ -498,11 +516,13 @@ func (pool *hostConnPool) connect() (err error) {
 	var conn *Conn
 	reconnectionPolicy := pool.session.cfg.ReconnectionPolicy
 	for i := 0; i < reconnectionPolicy.GetMaxRetries(); i++ {
+		l.Debug("connection to shard")
 		conn, err = pool.session.connectShard(pool.session.ctx, pool.host, pool, shardID, nrShards)
 		if err == nil {
 			break
 		}
 		if opErr, isOpErr := err.(*net.OpError); isOpErr {
+			l.WithError(err).Debug("connection failed")
 			// if the error is not a temporary error (ex: network unreachable) don't
 			//  retry
 			if !opErr.Temporary() {
@@ -559,10 +579,15 @@ func (pool *hostConnPool) initConnPicker(conn *Conn) {
 
 // handle any error from a Conn
 func (pool *hostConnPool) HandleError(conn *Conn, err error, closed bool) {
+	l := log.WithField("struct", "hostConnPool").WithField("method", "HandleError").WithError(err)
+
 	if !closed {
+		l.Debug("handling error but connection is not closed")
 		// still an open connection, so continue using it
 		return
 	}
+
+	l.Debug("handling error and connection is closed")
 
 	// TODO: track the number of errors per host and detect when a host is dead,
 	// then also have something which can detect when a host comes back.
