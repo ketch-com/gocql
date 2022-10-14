@@ -6,7 +6,7 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.9
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed
-	go.ketch.com/lib/orlop/v2 v2.19.5
+	go.ketch.com/lib/orlop/v2 v2.19.6
 	golang.org/x/net v0.0.0-20221004154528-8021a29435af
 	gopkg.in/inf.v0 v0.9.1
 	sigs.k8s.io/yaml v1.3.0
