@@ -447,7 +447,7 @@ func (pool *hostConnPool) fill() {
 		}
 	}()
 }
-œ
+
 func (pool *hostConnPool) logConnectErr(err error) {
 	l := log.WithField("struct", "hostConnPool").WithField("method", "logConnectErr")
 	if l != nil {
