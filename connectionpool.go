@@ -324,7 +324,11 @@ func newHostConnPool(session *Session, host *HostInfo, port, size int,
 
 // Pick a connection from this connection pool for the given query.
 func (pool *hostConnPool) Pick(token token) *Conn {
-	log.WithField("struct", "hostConnPool").WithField("method", "Pick").WithField("token", token.String()).Debug("picking connection")
+	l := log.WithField("struct", "hostConnPool").WithField("method", "Pick")
+	if token != nil {
+		l.WithField("token", token.String())
+	}
+	l.Debug("picking connection")
 
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
@@ -445,7 +449,11 @@ func (pool *hostConnPool) fill() {
 }
 
 func (pool *hostConnPool) logConnectErr(err error) {
-	log.WithField("struct", "hostConnPool").WithField("method", "logConnectErr").WithError(err).Error("host connection pool error")
+	l := log.WithField("struct", "hostConnPool").WithField("method", "logConnectErr")
+	if l != nil {
+		l.WithError(err)
+	}
+	l.Error("host connection pool error")
 
 	if opErr, ok := err.(*net.OpError); ok && (opErr.Op == "dial" || opErr.Op == "read") {
 		// connection refused
